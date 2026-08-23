@@ -278,6 +278,36 @@ def test_fetch_is_pre_cutoff():
 
 
 @pytest.mark.grader
+def test_fetch_output_fits_harness_cap():
+    """A full-paper fetch must fit under the 32,768-byte harness tool-output cap.
+
+    The SDK mirrors the fetched text into metadata["content"]; harnesses that
+    cap tool outputs drop the WHOLE output when metadata alone exceeds the cap,
+    so the model sees a placeholder instead of the paper. CiteCastBackSearch
+    strips the mirror and caps text at FETCH_MAX_CHARS — this test replays the
+    fetch that originally surfaced the bug (a ~55k-char capture)."""
+    import json as _json
+
+    from openreward.toolsets._web_common import WebFetchParams
+
+    from citecast import CiteCastBackSearch
+    from constants import FETCH_MAX_CHARS
+
+    _api_key()
+    toolset = CiteCastBackSearch(None, as_of=CUTOFF)
+    params = WebFetchParams(
+        url="https://arxiv.org/abs/2601.09028", prompt="Extract the author names."
+    )
+    out = asyncio.run(toolset.web_fetch(params))
+    text = out.blocks[0].text
+    assert "OpenDecoder" in text
+    assert len(text) <= FETCH_MAX_CHARS + 500  # envelope headroom
+    assert not (out.metadata and "content" in out.metadata)
+    wire = _json.dumps({"blocks": [{"text": text}], "metadata": out.metadata})
+    assert len(wire.encode()) < 32_768
+
+
+@pytest.mark.grader
 def test_submit_flow():
     from citecast import CiteCast
 

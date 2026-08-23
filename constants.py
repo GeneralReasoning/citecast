@@ -99,3 +99,11 @@ SWEEP_SEED = 908
 # Prompt construction: long author lists are truncated to this many names
 # (plus "and N others"); the full count ships as author_count.
 MAX_PROMPT_AUTHORS = 10
+
+# Cap on web_fetch text. Training harnesses cap env tool outputs (enigma:
+# 32,768 bytes, dropping the ENTIRE output when it cannot be truncated to
+# fit), and the SDK additionally mirrors the fetched text into
+# metadata["content"] — CiteCastBackSearch strips that mirror and caps the
+# text here so a fetch of a full paper always fits under the harness cap
+# instead of reaching the model as a placeholder.
+FETCH_MAX_CHARS = 24_000

@@ -24,7 +24,7 @@ from typing import Any, List, Optional
 from pydantic import BaseModel, Field
 
 import constants  # noqa: F401  (sets OPENREWARD_WEB_CORPUS before any tool call)
-from constants import CUTOFF, DATA_FILE, MAX_PREDICTION, SPLITS
+from constants import CUTOFF, DATA_FILE, FETCH_MAX_CHARS, MAX_PREDICTION, SPLITS
 from grading import band_of, compute_reward
 from prompts import render_prompt
 
@@ -37,8 +37,12 @@ from openreward.environments import (
     tool,
 )
 from openreward.toolsets import BackSearchToolset
-from openreward.toolsets._web_common import WebSearchParams, to_tool_output
-from openreward.tools.web import SEARCH_DESCRIPTION, run_search
+from openreward.toolsets._web_common import (
+    WebFetchParams,
+    WebSearchParams,
+    to_tool_output,
+)
+from openreward.tools.web import FETCH_DESCRIPTION, SEARCH_DESCRIPTION, run_fetch, run_search
 from openreward.web_service import WebServiceConfig
 
 
@@ -75,14 +79,20 @@ class SubmitPredictionInput(BaseModel, extra="forbid"):
 
 
 class CiteCastBackSearch(BackSearchToolset):
-    """BackSearchToolset with two adjustments, both backdating-preserving.
+    """BackSearchToolset with three adjustments, all backdating-preserving.
 
     First, the session's secrets (``api_key``) are consulted when building the
     web-service config, falling back to the process environment — the stock
     toolset reads the process env only. Second, ``web_search`` passes
     ``include_snippets=True`` so results carry text snippets instead of bare
-    titles and URLs. The as_of cutoff still resolves through the parent's
-    ``_current_as_of`` (env.web_as_of) on every call.
+    titles and URLs. Third, ``web_fetch`` caps the fetched text at
+    ``FETCH_MAX_CHARS`` and strips the SDK's full-text mirror from
+    ``metadata["content"]``: training harnesses cap env tool outputs (enigma
+    drops the whole output past 32,768 bytes when metadata alone exceeds the
+    cap), and without this a full-paper fetch reaches the model as
+    "[env tool output exceeded cap]" instead of content. The as_of cutoff
+    still resolves through the parent's ``_current_as_of`` (env.web_as_of) on
+    every call.
     """
 
     def __init__(self, env: Optional[Any] = None, **kwargs: Any) -> None:
@@ -103,8 +113,29 @@ class CiteCastBackSearch(BackSearchToolset):
         )
         return to_tool_output(result)
 
+    @tool
+    async def web_fetch(self, params: WebFetchParams) -> ToolOutput:
+        result = await run_fetch(
+            url=params.url,
+            prompt=params.prompt,
+            as_of=self._current_as_of(),
+            config=self.config,
+            max_chars=FETCH_MAX_CHARS,
+        )
+        out = to_tool_output(result)
+        if out.metadata and "content" in out.metadata:
+            slim = {k: v for k, v in out.metadata.items() if k != "content"}
+            out = ToolOutput(
+                blocks=out.blocks,
+                metadata=slim or None,
+                reward=out.reward,
+                finished=out.finished,
+            )
+        return out
+
 
 CiteCastBackSearch.web_search.__doc__ = SEARCH_DESCRIPTION
+CiteCastBackSearch.web_fetch.__doc__ = FETCH_DESCRIPTION
 
 
 class CiteCast(Environment):

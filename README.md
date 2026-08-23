@@ -65,7 +65,7 @@ The cohort was harvested from the arXiv API (day-sliced submittedDate queries ov
 ## Tools
 
 - `web_search` — backdated search over the frozen corpus (arXiv, news, general web sub-corpora), returning titles, URLs, and snippets. The cutoff (2026-01-31) is injected server-side per request; it is not an agent-visible parameter.
-- `web_fetch` — fetches a page as it existed on or before the cutoff (by crawl date); returns extracted text.
+- `web_fetch` — fetches a page as it existed on or before the cutoff (by crawl date); returns extracted text, capped at 24,000 characters with the SDK's full-text metadata mirror stripped so the tool output always fits under training-harness tool-output caps (32 KiB) instead of being dropped wholesale.
 - `submit_prediction` — one integer prediction plus a short free-text justification (recorded, not graded). First call ends the task.
 
 ## Time Horizon
