@@ -1,0 +1,21 @@
+# Task data is mounted at /orwd_data in production, not baked into the image.
+data/
+*.jsonl
+
+# Datagen is a build-time concern.
+datagen/
+
+# Dev-side files.
+golden_tests.py
+sweep.py
+test_agent.py
+pytest.ini
+sweep_*.json
+README.md
+DATA_UPLOAD.md
+.git/
+.gitignore
+__pycache__/
+*.pyc
+.env
+.DS_Store

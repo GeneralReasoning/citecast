@@ -1,0 +1,2 @@
+openreward[search]>=0.1.155
+pydantic>=2.0

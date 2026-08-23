@@ -1,0 +1,15 @@
+# Task data lives on the OpenReward platform, not in git.
+data/
+*.jsonl
+
+# Datagen intermediates and caches.
+datagen/cache/
+datagen/parts/
+__pycache__/
+*.pyc
+
+# Local run artifacts.
+sweep_*.json
+citecast_trajectory.jsonl
+.env
+.DS_Store
