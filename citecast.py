@@ -61,6 +61,11 @@ def _load_examples() -> dict[str, dict[str, Any]]:
 EXAMPLES = _load_examples()
 
 
+# Reward for a submission made after the task has already been graded. Negative
+# so repeat submissions are actively discouraged, not merely left unscored.
+REPEAT_SUBMISSION_PENALTY = -0.1
+
+
 class TaskSpec(BaseModel):
     task_id: str
 
@@ -193,9 +198,11 @@ class CiteCast(Environment):
         """Submit your final citation-count prediction. One submission only — this ends the task."""
         if self.submitted:
             return ToolOutput(
-                blocks=[TextBlock(text="A prediction was already submitted for this task.")],
-                metadata={"error": "already_submitted"},
-                reward=0.0,
+                blocks=[TextBlock(text="A prediction was already submitted for this task. "
+                                       "This episode is over: it is not re-scored, and repeat "
+                                       "submissions are penalised (reward -0.1).")],
+                metadata={"error": "already_submitted", "already_submitted": True},
+                reward=REPEAT_SUBMISSION_PENALTY,
                 finished=True,
             )
         self.submitted = True
