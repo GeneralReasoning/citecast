@@ -45,6 +45,8 @@ from openreward.toolsets._web_common import (
 from openreward.tools.web import FETCH_DESCRIPTION, SEARCH_DESCRIPTION, run_fetch, run_search
 from openreward.web_service import WebServiceConfig
 
+from web_repair import drop_content_mirror, is_not_archived, not_archived_output, url_variants
+
 
 def _load_examples() -> dict[str, dict[str, Any]]:
     examples: dict[str, dict[str, Any]] = {}
@@ -120,23 +122,25 @@ class CiteCastBackSearch(BackSearchToolset):
 
     @tool
     async def web_fetch(self, params: WebFetchParams) -> ToolOutput:
-        result = await run_fetch(
-            url=params.url,
-            prompt=params.prompt,
-            as_of=self._current_as_of(),
-            config=self.config,
-            max_chars=FETCH_MAX_CHARS,
-        )
-        out = to_tool_output(result)
-        if out.metadata and "content" in out.metadata:
-            slim = {k: v for k, v in out.metadata.items() if k != "content"}
-            out = ToolOutput(
-                blocks=out.blocks,
-                metadata=slim or None,
-                reward=out.reward,
-                finished=out.finished,
+        async def fetch(url: str) -> ToolOutput:
+            result = await run_fetch(
+                url=url,
+                prompt=params.prompt,
+                as_of=self._current_as_of(),
+                config=self.config,
+                max_chars=FETCH_MAX_CHARS,
             )
-        return out
+            return drop_content_mirror(to_tool_output(result))
+
+        out = await fetch(params.url)
+        if not is_not_archived(out):
+            return out
+        # The archive matches URLs byte-for-byte, so retry cosmetic respellings.
+        for candidate in url_variants(params.url):
+            retry = await fetch(candidate)
+            if not (retry.metadata or {}).get("error"):
+                return retry
+        return not_archived_output(params.url)
 
 
 CiteCastBackSearch.web_search.__doc__ = SEARCH_DESCRIPTION
