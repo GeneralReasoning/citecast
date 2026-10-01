@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 
 import constants  # noqa: F401  (sets OPENREWARD_WEB_CORPUS before any tool call)
 from constants import CUTOFF, DATA_FILE, FETCH_MAX_CHARS, MAX_PREDICTION, SPLITS
-from grading import band_of, compute_reward
+from grading import compute_reward
 from prompts import render_prompt
 
 from openreward.environments import (
@@ -215,10 +215,8 @@ class CiteCast(Environment):
         predicted = params.predicted_citations
         reward = compute_reward(predicted, actual)
 
-        # The true count and band go in metadata only, never in the blocks
-        # text: finished=True means the model never sees this in-episode, but
-        # blocks are the part most likely to surface in a future harness or an
-        # SFT-from-trajectory pipeline.
+        # The model sees both the blocks text and the metadata, so neither
+        # carries the true count or its citation band: only the reward.
         return ToolOutput(
             blocks=[
                 TextBlock(
@@ -229,8 +227,6 @@ class CiteCast(Environment):
                 "task_id": self.validated.task_id,
                 "arxiv_id": self.example["arxiv_id"],
                 "predicted": predicted,
-                "actual": actual,
-                "band": band_of(actual),
                 "reward": reward,
             },
             reward=reward,
