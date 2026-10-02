@@ -307,6 +307,25 @@ def test_fetch_output_fits_harness_cap():
     assert len(wire.encode()) < 32_768
 
 
+def test_submit_output_hides_true_count():
+    # The model sees the whole tool output, metadata included: the graded
+    # submission reports the reward but never the true count or its band.
+    from citecast import CiteCast, SubmitPredictionInput
+
+    rows = [r for r in ROWS if r["true_citations"] >= 26][:3] + ROWS[:3]
+    for row in rows:
+        env = CiteCast({"task_id": row["task_id"]}, secrets={"api_key": "offline"})
+        predicted = row["true_citations"] + 7
+        params = SubmitPredictionInput(predicted_citations=predicted, reasoning="test")
+        out = asyncio.run(env.submit_prediction(params))
+        assert out.finished is True
+        assert out.reward == compute_reward(predicted, row["true_citations"])
+        assert "actual" not in out.metadata and "band" not in out.metadata
+        assert row["true_citations"] not in out.metadata.values()
+        assert row["band"] not in out.metadata.values()
+        assert not re.search(rf"\b{row['true_citations']}\b", out.blocks[0].text)
+
+
 @pytest.mark.grader
 def test_submit_flow():
     from citecast import CiteCast
@@ -315,7 +334,7 @@ def test_submit_flow():
     row = ROWS[0]
     env = CiteCast({"task_id": row["task_id"]}, secrets={"api_key": key})
 
-    from citecast import SubmitPredictionInput
+    from citecast import REPEAT_SUBMISSION_PENALTY, SubmitPredictionInput
 
     params = SubmitPredictionInput(predicted_citations=3, reasoning="test")
     out = asyncio.run(env.submit_prediction(params))
@@ -325,4 +344,4 @@ def test_submit_flow():
 
     again = asyncio.run(env.submit_prediction(params))
     assert again.metadata["error"] == "already_submitted"
-    assert again.reward == 0.0
+    assert again.reward == REPEAT_SUBMISSION_PENALTY
